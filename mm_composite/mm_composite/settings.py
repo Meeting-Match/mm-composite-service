@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'composite',
     'rest_framework',
     'corsheaders',
+    'graphene_django',
 ]
 
 MIDDLEWARE = [
@@ -135,4 +136,8 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
     'PAGE_SIZE': 10
+}
+
+GRAPHENE = {
+    "SCHEMA": "composite.schema.schema",
 }
