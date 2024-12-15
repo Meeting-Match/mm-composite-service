@@ -203,7 +203,7 @@ def get_enriched_event(request, event_id):
         return event_data
 
     except requests.RequestException as e:
-        logger.error(f'Error retrieving event: {e}', extra={'correlation_id': correlation_id}
+        logger.error(f'Error retrieving event: {e}', extra={'correlation_id': correlation_id})
         return None
 
 
