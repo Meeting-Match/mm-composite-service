@@ -147,13 +147,19 @@ REST_FRAMEWORK = {
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'filters': {
+        'add_correlation_id': {
+            '()': 'django.utils.log.CallbackFilter',
+            'callback': lambda record: setattr(record, 'correlation_id', getattr(record, 'correlation_id', 'N/A')) or True,
+        },
+    },
     'formatters': {
         'verbose': {
             'format': '{levelname} {asctime} {module} {message} {correlation_id}',
             'style': '{',
         },
-        'simple': {
-            'format': '{levelname} {message}',
+        'default': {
+            'format': '{levelname} {asctime} {message} {correlation_id}',
             'style': '{',
         },
     },
@@ -161,17 +167,23 @@ LOGGING = {
         'console': {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
+            'filters': ['add_correlation_id'],  # Apply filter here
         },
     },
     'loggers': {
         'django': {
             'handlers': ['console'],
             'level': 'INFO',
+            'propagate': True,
         },
-        'composite': {  # Logger for this app
+        'composite': {  # Logger for your app
             'handlers': ['console'],
             'level': 'DEBUG',
-            'propagate': False
+            'propagate': False,
         },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
     },
 }
