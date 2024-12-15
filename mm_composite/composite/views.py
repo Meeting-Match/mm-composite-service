@@ -7,51 +7,72 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .util import RemoteJWTAuthentication
 from datetime import datetime, timedelta
+import logging
 
+logger = logging.getLogger('composite')
+
+def get_correlation_id(request):
+    return getattr(request, 'correlation_id', 'N/A')
 
 class EventCreateView(APIView):
     authentication_classes = [RemoteJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        # Forward event data to the scheduling microservice
+        correlation_id = get_correlation_id(request)
         event_data = request.data
-        print(request.data)
-        print("About to request from events microservice:")
-        event_response = requests.post(
-            "http://localhost:8000/events/",
-            json=event_data,
-            headers={"Authorization": f"Bearer {request.auth}"}
-        )
+        logger.info('Received event creation request', extra={'correlation_id': correlation_id})
+
+        try:
+            logger.debug('Forwarding data to the scheduling microservice', extra={'correlation_id': correlation_id})
+            event_response = requests.post(
+                'http://localhost:8000/events/', # CHANGE HERE TO THE ACTUAL URL ONCE PUT ON AWS
+                json=event_data,
+                headers={
+                    'Authorization': f'Bearer {request.auth}',
+                    'X-Correlation-ID': correlation_id
+                }
+            )
+        except requests.RequestException as e:
+            logger.error(f'Error while forwarding event data: {e}', extra={'correlation_id': correlation_id})
+            return Response({'detail': 'Failed to forward event data'}, status=500)
+
 
         # Check if event creation was successful
         if event_response.status_code == 201 or event_response.status_code == 200:
             # Parse the created event data
             created_event = event_response.json()
+            logger.info(f'Event created successfully: {created_event}', extra={'correlation_id': correlation_id})
 
             # Send emails to participants
-            self.send_event_emails(created_event, request.auth)
+            self.send_event_emails(created_event, request.auth, correlation_id)
+        else:
+            logger.warning(f'Failed to create event: {event_response.text}', extra={'correlation_id': correlation_id})
 
-        print(event_response.text)
         return Response(event_response.json(), status=event_response.status_code)
 
-    def send_event_emails(self, event, auth_token):
+    def send_event_emails(self, event, auth_token, correlation_id):
         """
         Send email notifications to all participants about the newly created event.
 
         :param event: Dict containing event details
         :param auth_token: Authentication token for making requests
+        :param correlation_id: Correlation ID for tracking requests
         """
         # Collect participant IDs
         participant_ids = event.get('participant_ids', [])
+        logger.info(f'Sending emails to participants: {participant_ids}', extra={'correlation_id': correlation_id})
 
         # Fetch details for each participant
         for participant_id in participant_ids:
             try:
                 # Fetch participant details
                 user_response = requests.get(
-                    f"http://localhost:8001/userinfo/{participant_id}/",
-                    headers={"Authorization": f"Bearer {auth_token}"}
+                    f"http://localhost:8001/userinfo/{participant_id}/", # CHANGE HERE TO THE ACTUAL URL ONCE PUT ON AWS
+                    headers={
+                        "Authorization": f"Bearer {auth_token}",
+                        "X-Correlation-ID": correlation_id
+                    }
                 )
                 user_response.raise_for_status()
                 participant = user_response.json()
@@ -68,8 +89,7 @@ class EventCreateView(APIView):
                 self.send_email(email_data)
 
             except requests.RequestException as e:
-                print(f"Failed to send email to participant {
-                      participant_id}: {e}")
+                logger.error(f'Failed to send email to participant {participant_id}: {e}', extra={'correlation_id': correlation_id})
 
     def construct_event_email_body(self, event, participant):
         """
@@ -79,6 +99,8 @@ class EventCreateView(APIView):
         :param participant: Dict containing participant details
         :return: Formatted email body
         """
+        correlation_id = participant.get('correlation_id', 'N/A')
+        logger.debug(f'Constructing email body for participant {participant.get('id')}', extra={'correlation_id': correlation_id})
         return f"""Hi {participant.get('first_name', 'Participant')},
 
 You've been invited to a new event:
@@ -99,15 +121,18 @@ Your Event Management Team"""
 
         :param email_data: Dict containing email details
         """
+        correlation_id = email_data.get('correlation_id', 'N/A')
+        logger.info(f'Sending email to {email_data.get("recipient_list")}', extra={'correlation_id': correlation_id})
         try:
             email_response = requests.post(
-                "http://localhost:8003/send-email",
-                json=email_data
+                "http://localhost:8003/send-email", # CHANGE HERE TO THE ACTUAL URL ONCE PUT ON AWS
+                json=email_data,
+                headers={"X-Correlation-ID": correlation_id}
             )
             email_response.raise_for_status()
-            print(f"Email sent successfully to {email_data['recipient_list']}")
+            logger.info(f'Email sent successfully to {email_data.get("recipient_list")}', extra={'correlation_id': correlation_id})
         except requests.RequestException as e:
-            print(f"Failed to send email: {e}")
+            logger.error(f'Failed to send email: {e}', extra={'correlation_id': correlation_id})
 
 
 def get_enriched_event(request, event_id):
@@ -119,15 +144,21 @@ def get_enriched_event(request, event_id):
     :param event_id: ID of the event to retrieve
     :return: Enriched event dictionary
     """
+    correlation_id = get_correlation_id(request)
+    logger.info(f'Fetching enriched event with ID {event_id}', extra={'correlation_id': correlation_id})
     try:
         # Retrieve the event from scheduling service
-        print(f"request.auth: {request.auth}")
+        logger.debug(f'Requesting event data from scheduling service for event ID {event_id}', extra={'correlation_id': correlation_id})
         event_response = requests.get(
-            f"http://localhost:8000/events/{event_id}/",
-            headers={"Authorization": f"Bearer {request.auth}"}
+            f"http://localhost:8000/events/{event_id}/", # CHANGE URL HERE ADSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+            headers={
+                "Authorization": f"Bearer {request.auth}",
+                "X-Correlation-ID": correlation_id
+            }
         )
         event_response.raise_for_status()  # Raise an exception for bad responses
         event_data = event_response.json()
+        logger.info(f'Event data retrieved successfully for event ID {event_id}', extra={'correlation_id': correlation_id})
 
         # Collect unique user IDs
         user_ids = set()
@@ -143,15 +174,18 @@ def get_enriched_event(request, event_id):
         user_details = {}
         for user_id in user_ids:
             try:
-                print(f"User id = {user_id}")
+                logger.debug(f'Fetching user data for user ID {user_id}', extra={'correlation_id': correlation_id})
                 user_response = requests.get(
-                    f"http://localhost:8001/userinfo/{user_id}/",
-                    headers={"Authorization": f"Bearer {request.auth}"}
+                    f"http://localhost:8001/userinfo/{user_id}/", ###################################################
+                    headers={
+                        "Authorization": f"Bearer {request.auth}",
+                        "X-Correlation-ID": correlation_id
+                    }
                 )
                 user_response.raise_for_status()
                 user_details[user_id] = user_response.json()
             except requests.RequestException as e:
-                print(f"Failed to fetch user {user_id}: {e}")
+                logger.error(f'Failed to fetch user data for user ID {user_id}: {e}', extra={'correlation_id': correlation_id})
 
         # Enrich event data with user objects
         if event_data.get('organizer_id'):
@@ -165,10 +199,11 @@ def get_enriched_event(request, event_id):
                 if pid in user_details
             ]
 
+        logger.info(f'Enriched event data for event ID {event_id}', extra={'correlation_id': correlation_id})
         return event_data
 
     except requests.RequestException as e:
-        print(f"Error retrieving event: {e}")
+        logger.error(f'Error retrieving event: {e}', extra={'correlation_id': correlation_id}
         return None
 
 
@@ -177,21 +212,30 @@ class EnrichedEventView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, event_id):
+        correlation_id = get_correlation_id(request)
+        logger.info(f'Fetching enriched event for event_id: {event_id}', extra={'correlation_id': correlation_id})
+
         enriched_event = get_enriched_event(request, event_id)
 
         if enriched_event is None:
+            logger.error(f'Failed to retrieve event for event_id: {event_id}', extra={'correlation_id': correlation_id})
             return Response({"detail": "Failed to retrieve event"}, status=500)
 
+        logger.info(f'Successfully retrieved enriched event for event_id: {event_id}', extra={'correlation_id': correlation_id})
         return Response(enriched_event)
 
 
 def get_enriched_availability(request, availability_id):
+    correlation_id = get_correlation_id(request)
     try:
         # Retrieve the availability from scheduling service
-        print(f"request.auth: {request.auth}")
+        logger.info(f'Fetching availability for availability_id: {availability_id}', extra={'correlation_id': correlation_id})
         availability_response = requests.get(
-            f"http://localhost:8000/availabilities/{availability_id}/",
-            headers={"Authorization": f"Bearer {request.auth}"}
+            f"http://localhost:8000/availabilities/{availability_id}/", ########################################################
+            headers={
+                "Authorization": f"Bearer {request.auth}",
+                "X-Correlation-ID": correlation_id
+            }
         )
         # Raise an exception for bad responses
         availability_response.raise_for_status()
@@ -206,15 +250,18 @@ def get_enriched_availability(request, availability_id):
         user_details = {}
         for user_id in user_ids:
             try:
-                print(f"User id = {user_id}")
+                logger.info(f'Fetching user details for user_id: {user_id}', extra={'correlation_id': correlation_id})
                 user_response = requests.get(
-                    f"http://localhost:8001/userinfo/{user_id}/",
-                    headers={"Authorization": f"Bearer {request.auth}"}
+                    f"http://localhost:8001/userinfo/{user_id}/", #########################################################
+                    headers={
+                        "Authorization": f"Bearer {request.auth}",
+                        "X-Correlation-ID": correlation_id
+                    }
                 )
                 user_response.raise_for_status()
                 user_details[user_id] = user_response.json()
             except requests.RequestException as e:
-                print(f"Failed to fetch user {user_id}: {e}")
+                logger.error(f'Failed to fetch user {user_id}: {e}', extra={'correlation_id': correlation_id})
 
         # Enrich availability data with user object
         if availability_data.get('participant_id'):
@@ -224,16 +271,16 @@ def get_enriched_availability(request, availability_id):
         # Enrich with event link (URL)
         event_id = availability_data.get('event_id')
         # TODO: Proper HATEOS setup here
-        print(availability_data)
         if event_id:
-            event_url = f"http://localhost:8002/getevent/{event_id}/"
+            event_url = f"http://localhost:8002/getevent/{event_id}/" ###############################################
             # Return event URL instead of full event data
             availability_data['event'] = event_url
 
+        logger.info(f'Successfully enriched availability for availability_id: {availability_id}', extra={'correlation_id': correlation_id})
         return availability_data
 
     except requests.RequestException as e:
-        print(f"Error retrieving availability: {e}")
+        logger.error(f'Error retrieving availability for availability_id: {availability_id}: {e}', extra={'correlation_id': correlation_id})
         return None
 
 
@@ -242,10 +289,15 @@ class EnrichedAvailabilityView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, availability_id):
+        correlation_id = get_correlation_id(request)
+        logger.info(f'Fetching enriched availability for availability_id: {availability_id}', extra={'correlation_id': correlation_id})
+
         enriched_availability = get_enriched_availability(
             request, availability_id)
 
         if enriched_availability is None:
+            logger.error(f'Failed to retrieve availability for availability_id: {availability_id}', extra={'correlation_id': correlation_id})
             return Response({"detail": "Failed to retrieve availability"}, status=500)
 
+        logger.info(f'Successfully retrieved enriched availability for availability_id: {availability_id}', extra={'correlation_id': correlation_id})
         return Response(enriched_availability)
