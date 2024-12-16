@@ -167,7 +167,7 @@ LOGGING = {
         'console': {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
-            'filters': ['add_correlation_id'],  # Apply filter here
+            'filters': ['add_correlation_id'],  # Attach the filter
         },
     },
     'loggers': {
@@ -176,13 +176,18 @@ LOGGING = {
             'level': 'INFO',
             'propagate': True,
         },
-        'composite': {  # Logger for your app
+        'django.server': {  # Prevent duplicate basehttp logs
+            'handlers': [],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'composite': {  # Logger for the composite app
             'handlers': ['console'],
             'level': 'DEBUG',
             'propagate': False,
         },
     },
-    'root': {
+    'root': {  # Catch-all logger
         'handlers': ['console'],
         'level': 'INFO',
     },
