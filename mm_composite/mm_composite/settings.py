@@ -197,3 +197,5 @@ LOGGING = {
 GRAPHENE = {
     "SCHEMA": "composite.schema.schema",
 }
+
+CORS_ALLOW_ALL_ORIGINS = True
