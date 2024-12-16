@@ -8,12 +8,15 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from .util import RemoteJWTAuthentication
 from datetime import datetime, timedelta
 import logging
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
 logger = logging.getLogger('composite')
 
 def get_correlation_id(request):
     return getattr(request, 'correlation_id', 'N/A')
 
+@method_decorator(csrf_exempt, name='dispatch')
 class EventCreateView(APIView):
     authentication_classes = [RemoteJWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -26,7 +29,7 @@ class EventCreateView(APIView):
         try:
             logger.debug('Forwarding data to the scheduling microservice', extra={'correlation_id': correlation_id})
             event_response = requests.post(
-                'http://localhost:8000/events/', # CHANGE HERE TO THE ACTUAL URL ONCE PUT ON AWS
+                'http://18.119.106.13:8000/events/', # CHANGE HERE TO THE ACTUAL URL ONCE PUT ON AWS
                 json=event_data,
                 headers={
                     'Authorization': f'Bearer {request.auth}',
@@ -68,7 +71,7 @@ class EventCreateView(APIView):
             try:
                 # Fetch participant details
                 user_response = requests.get(
-                    f"http://localhost:8001/userinfo/{participant_id}/", # CHANGE HERE TO THE ACTUAL URL ONCE PUT ON AWS
+                    f"http://3.15.225.226:8001/userinfo/{participant_id}/", # CHANGE HERE TO THE ACTUAL URL ONCE PUT ON AWS
                     headers={
                         "Authorization": f"Bearer {auth_token}",
                         "X-Correlation-ID": correlation_id
@@ -125,7 +128,7 @@ Your Event Management Team"""
         logger.info(f'Sending email to {email_data.get("recipient_list")}', extra={'correlation_id': correlation_id})
         try:
             email_response = requests.post(
-                "http://localhost:8003/send-email", # CHANGE HERE TO THE ACTUAL URL ONCE PUT ON AWS
+                "http://notification-service-env.eba-37gex8hp.us-east-2.elasticbeanstalk.com/send-email", # CHANGE HERE TO THE ACTUAL URL ONCE PUT ON AWS
                 json=email_data,
                 headers={"X-Correlation-ID": correlation_id}
             )
@@ -150,7 +153,7 @@ def get_enriched_event(request, event_id):
         # Retrieve the event from scheduling service
         logger.debug(f'Requesting event data from scheduling service for event ID {event_id}', extra={'correlation_id': correlation_id})
         event_response = requests.get(
-            f"http://localhost:8000/events/{event_id}/", # CHANGE URL HERE ADSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+            f"http://18.119.106.13:8000/events/{event_id}/", # CHANGE URL HERE ADSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
             headers={
                 "Authorization": f"Bearer {request.auth}",
                 "X-Correlation-ID": correlation_id
@@ -176,7 +179,7 @@ def get_enriched_event(request, event_id):
             try:
                 logger.debug(f'Fetching user data for user ID {user_id}', extra={'correlation_id': correlation_id})
                 user_response = requests.get(
-                    f"http://localhost:8001/userinfo/{user_id}/", ###################################################
+                    f"http://3.15.225.226:8001/userinfo/{user_id}/", ###################################################
                     headers={
                         "Authorization": f"Bearer {request.auth}",
                         "X-Correlation-ID": correlation_id
@@ -231,7 +234,7 @@ def get_enriched_availability(request, availability_id):
         # Retrieve the availability from scheduling service
         logger.info(f'Fetching availability for availability_id: {availability_id}', extra={'correlation_id': correlation_id})
         availability_response = requests.get(
-            f"http://localhost:8000/availabilities/{availability_id}/", ########################################################
+            f"http://18.119.106.13:8000/availabilities/{availability_id}/", ########################################################
             headers={
                 "Authorization": f"Bearer {request.auth}",
                 "X-Correlation-ID": correlation_id
@@ -252,7 +255,7 @@ def get_enriched_availability(request, availability_id):
             try:
                 logger.info(f'Fetching user details for user_id: {user_id}', extra={'correlation_id': correlation_id})
                 user_response = requests.get(
-                    f"http://localhost:8001/userinfo/{user_id}/", #########################################################
+                    f"http://3.15.225.226:8001/userinfo/{user_id}/", #########################################################
                     headers={
                         "Authorization": f"Bearer {request.auth}",
                         "X-Correlation-ID": correlation_id
@@ -272,7 +275,7 @@ def get_enriched_availability(request, availability_id):
         event_id = availability_data.get('event_id')
         # TODO: Proper HATEOS setup here
         if event_id:
-            event_url = f"http://localhost:8002/getevent/{event_id}/" ###############################################
+            event_url = f"http://3.135.188.178:8002/getevent/{event_id}/" ###############################################
             # Return event URL instead of full event data
             availability_data['event'] = event_url
 

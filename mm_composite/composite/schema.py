@@ -38,7 +38,7 @@ class Query(graphene.ObjectType):
         try:
             # Retrieve event from the scheduling service (No auth if unnecessary)
             event_response = requests.get(
-                f"http://localhost:8000/events/{event_id}/",
+                f"http://18.119.106.13:8000/events/{event_id}/",
                 headers=headers  # Add Authorization only if the token is present
             )
             event_response.raise_for_status()
@@ -67,7 +67,7 @@ class Query(graphene.ObjectType):
             for user_id in user_ids:
                 try:
                     user_response = requests.get(
-                        f"http://localhost:8001/userinfo/{user_id}/",
+                        f"http://3.15.225.226:8001/userinfo/{user_id}/",
                         headers=headers  # Add Authorization only if the token is present
                     )
                     user_response.raise_for_status()

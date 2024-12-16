@@ -11,6 +11,9 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+import logging
+import watchtower
+from datetime import datetime, timezone
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -50,6 +53,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'mm_composite.middleware.CorrelationIdMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -170,10 +174,16 @@ LOGGING = {
             'formatter': 'verbose',
             'filters': ['add_correlation_id'],  # Attach the filter
         },
+        'cloudwatch': {
+            'class': 'watchtower.CloudWatchLogHandler',
+            'formatter': 'verbose',
+            'log_group': 'CompositeServiceLogs',  # Unique log group for the composite service
+            'stream_name': f'{datetime.now(tz=datetime.timezone.utc)}-composite',  # Stream name includes a timestamp
+        },
     },
     'loggers': {
         'django': {
-            'handlers': ['console'],
+            'handlers': ['console', 'cloudwatch'],
             'level': 'INFO',
             'propagate': True,
         },
@@ -183,13 +193,13 @@ LOGGING = {
             'propagate': False,
         },
         'composite': {  # Logger for the composite app
-            'handlers': ['console'],
+            'handlers': ['console', 'cloudwatch'],
             'level': 'DEBUG',
             'propagate': False,
         },
     },
     'root': {  # Catch-all logger
-        'handlers': ['console'],
+        'handlers': ['console', 'cloudwatch'],
         'level': 'INFO',
     },
 }
@@ -198,4 +208,20 @@ GRAPHENE = {
     "SCHEMA": "composite.schema.schema",
 }
 
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:8000",
+#     "http://localhost:8001",
+#     "http://localhost:3000",
+#     "http://3.15.225.226:8000",
+#     "http://18.119.106.13:8000",
+#     "http://3.144.254.242:8000",
+# ]
+
 CORS_ALLOW_ALL_ORIGINS = True
+
+CORS_ALLOW_HEADERS = [
+    "Authorization",
+    "Content-Type",
+    "X-CSRFToken",
+    "X-Correlation-ID",
+]

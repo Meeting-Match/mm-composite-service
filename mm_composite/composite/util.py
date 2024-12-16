@@ -10,7 +10,7 @@ def get_correlation_id(request):
     return getattr(request, "correlation_id", "N/A")
 
 class RemoteJWTAuthentication(JWTAuthentication):
-    AUTH_SERVICE_URL = "http://localhost:8001/userinfo/" ############################################################
+    AUTH_SERVICE_URL = "http://3.15.225.226:8001/userinfo/" ############################################################
 
     def get_header(self, request):
         correlation_id = get_correlation_id(request)
