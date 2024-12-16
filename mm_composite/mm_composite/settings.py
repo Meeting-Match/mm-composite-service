@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'composite',
     'rest_framework',
     'corsheaders',
+    'graphene_django',
 ]
 
 MIDDLEWARE = [
@@ -191,4 +192,8 @@ LOGGING = {
         'handlers': ['console'],
         'level': 'INFO',
     },
+}
+
+GRAPHENE = {
+    "SCHEMA": "composite.schema.schema",
 }
